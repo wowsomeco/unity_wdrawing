@@ -2,139 +2,11 @@
 using UnityEngine;
 
 namespace Wowsome.Drawing {
-  public static class Ext {
-    public static Color32 TransparentWhite() {
-      return new Color32(255, 255, 255, 0);
-    }
-
-    public static Color32 White() {
-      return new Color32(255, 255, 255, 255);
-    }
-
-    public static Color32 Purple() {
-      // #a29bfe
-      return new Color32(162, 155, 254, 255);
-    }
-
-    public static Color32 Blue() {
-      // #74b9ff
-      return new Color32(116, 185, 255, 255);
-    }
-
-    public static Color32 Green() {
-      // #81ecec
-      return new Color32(129, 236, 236, 255);
-    }
-
-    public static Color32 Red() {
-      // #fab1a0
-      return new Color32(250, 177, 160, 255);
-    }
-
-    public static Color32 Yellow() {
-      // #ffeaa7
-      return new Color32(255, 234, 167, 255);
-    }
-
-    public static Color32 Rainbow(int idx) {
-      Color32[] seeds = new Color32[] { Blue(), Green(), Yellow() };
-      return seeds[idx];
-    }
-
-    public static Color32 WithAlpha(this Color32 color, byte a) {
-      return new Color32(color.r, color.g, color.b, a);
-    }
-
-    public static bool IsTransparent(this Color32 c) {
-      return c.a == 0;
-    }
-
-    public static bool LessThan(this Color32 c, byte number) {
-      return c.r < number && c.g < number && c.b < number;
-    }
-
-    public static byte Subtract(this byte b, int v) {
-      int n = b - v < 0 ? b + v : b - v;
-      return (byte)n;
-    }
-
-    public static Color32 Lighten(this Color32 color, int alpha) {
-      if (alpha > 250) return color;
-
-      float factor = (float)(alpha) / 255f;
-      factor += 0.6f;
-      factor = factor.Clamp(0.1f, 1f);
-
-      float r = (color.r / factor).Clamp(0f, 255f);
-      float g = (color.g / factor).Clamp(0f, 255f);
-      float b = (color.b / factor).Clamp(0f, 255f);
-
-      return new Color32((byte)r, (byte)g, (byte)b, color.a);
-    }
-
-    public static Color32 RandomizeAlpha(this Color32 c, int from = 0, int to = 255) {
-      return new Color32(
-        c.r,
-        c.g,
-        c.b,
-        (byte)Random.Range(from, to)
-      );
-    }
-
-    public static Vector2 ToLocalPos(this Vector2 screenPos, RectTransform parent, Camera camera = null) {
-      Vector2 pos;
-      RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenPos, camera, out pos);
-      return pos;
-    }
-  }
-
-  public struct VecInt {
-    Vector2 _vector;
-
-    public int x { get { return Mathf.FloorToInt(_vector.x); } }
-    public int xHalf { get { return x / 2; } }
-    public int y { get { return Mathf.FloorToInt(_vector.y); } }
-    public int yHalf { get { return y / 2; } }
-    public int xy { get { return x * y; } }
-    public int Sum { get { return x + y; } }
-    public VecInt Half { get { return new VecInt(xHalf, yHalf); } }
-
-    public VecInt(Vector2 v) {
-      _vector = v;
-    }
-
-    public VecInt(int x, int y) {
-      _vector = new Vector2(x, y);
-    }
-
-    public override string ToString() {
-      return x + "," + y;
-    }
-
-    public override int GetHashCode() {
-      return (x << 16) | y;
-    }
-
-    public override bool Equals(object obj) {
-      if (!(obj is VecInt))
-        return false;
-
-      VecInt other = (VecInt)obj;
-      return x == other.x && y == other.y;
-    }
-
-    public Vector2 ToVec2() {
-      return new Vector2(x, y);
-    }
-  }
-
   public class Pixel {
-    // public Color32 Color { get; set; }
-    public VecInt Pos { get; private set; }
+    public Vec2Int Pos { get; private set; }
     public int Index { get; private set; }
 
-    public Pixel(/*Color32 color,*/ VecInt pos, int idx) {
-      // Color = color; 
+    public Pixel(Vec2Int pos, int idx) {
       Pos = pos;
       Index = idx;
     }
@@ -143,55 +15,60 @@ namespace Wowsome.Drawing {
   public class PixelGrid {
     delegate Color32 GetColor(int idx);
 
-    public VecInt Pos { get; private set; }
-    public Dictionary<VecInt, Pixel> Pixels { get; private set; }
-    public VecInt Size { get; private set; }
+    public Vec2Int Pos { get; private set; }
+    public Dictionary<int, Pixel> Pixels { get; private set; }
+    public Vec2Int Size { get; private set; }
 
     Color32[] _colors = null;
     Texture2D _texture = null;
-    // Rect _rect;
+    Rect _rect;
+    Vec2Int _startPos;
 
-    public PixelGrid(VecInt size, VecInt mid, Color32 color) {
-      // _rect = new Rect(mid.ToVec2(), size.ToVec2());
-      GeneratePixels(size, mid, idx => color);
+    public PixelGrid(Vec2Int size, Vec2Int mid, Color32 color) {
+      Pos = mid;
+      Size = size;
+
+      _rect = new Rect(mid.ToVec2(), size.ToVec2());
+      _startPos = new Vec2Int(mid.X - (size.X / 2), mid.Y - (size.Y / 2));
+
+      _texture = new Texture2D(Size.X, Size.Y);
+      Clear();
     }
 
-    public bool Stamp(VecInt size, VecInt pos, Color32[] pixels, Color32 color) {
+    public void Clear() {
+      Pixels = new Dictionary<int, Pixel>();
+      _colors = new Color32[Size.Xy];
+    }
+
+    public bool Stamp(Vec2Int size, Vec2Int pos, Color32[] pixels, Color32 color) {
       bool stamped = false;
 
-      /*
-      // TODO: optimization
-      // 1. check if pos is within the rectangle of the texture
-      // 2. if yes and Pixels dist does not contain contain the pos key yet, then add to the dictionary.
-      // if (intersects) 
-      Rect r = new Rect(pos.ToVec2(), size.ToVec2());
-      bool intersects = _rect.Intersects(r);
+      bool intersects = _rect.Intersects(new Rect(pos.ToVec2(), size.ToVec2()));
       if (intersects) {
-        Pixel pixel = null;
-        bool exists = Pixels.TryGetValue(pos, out pixel);
-        if (!exists) {
-          
-          Pixels[pos] = new Pixel(pos, idx);
-        }
-      }
-      */
-
-      Pixel pixel = null;
-      // get the collide pos first
-      // then iterate over the sides according to the stamp pixel size.      
-      if (Pixels.TryGetValue(pos, out pixel)) {
         stamped = true;
+        // get the one dimension index of the pixel first
+        int theY = pos.Y - _startPos.Y;
+        int theX = pos.X - _startPos.X;
+        int idx = (Size.X * theY) + theX;
+        // check if exists already,
+        // if it doesnt then add it to the dictionary
+        Pixel pixel = null;
+        bool exists = Pixels.TryGetValue(idx, out pixel);
+        if (!exists) {
+          pixel = new Pixel(pos, idx);
+          Pixels[idx] = pixel;
+        }
 
-        int totalPixel = Pixels.Count;
+        int totalPixel = _colors.Length;
         int pixIdx = pixel.Index;
         int i = 0;
 
-        for (int y = 0; y < size.y; ++y) {
+        for (int y = 0; y < size.Y; ++y) {
           bool isLeftEdge = false;
-          for (int x = 0; x < size.x; ++x) {
+          for (int x = 0; x < size.X; ++x) {
             Color32 pixelColor = pixels[i];
             // make sure the pixel idx isnt out of range
-            bool idxInRange = pixIdx < totalPixel;
+            bool idxInRange = pixIdx >= 0 && pixIdx < totalPixel;
             if (!idxInRange) break;
             // skip if left edge until the row (y) changes
             // skip the transparent color, only stamp the black one            
@@ -223,17 +100,17 @@ namespace Wowsome.Drawing {
             ++i;
 
             if (!isLeftEdge) {
-              isLeftEdge = (pixIdx % Size.x == 0);
+              isLeftEdge = (pixIdx % Size.X == 0);
               // revert prev
               if (isLeftEdge) {
                 _colors[pixIdx - 1] = Ext.TransparentWhite();
               }
             }
 
-            bool last = (x == size.x - 1);
+            bool last = (x == size.X - 1);
             // shift up the index one row if last
             if (last) {
-              pixIdx = pixIdx + Size.x - size.x;
+              pixIdx = pixIdx + Size.X - size.X;
               isLeftEdge = false;
             }
           }
@@ -247,30 +124,6 @@ namespace Wowsome.Drawing {
       _texture.SetPixels32(_colors);
       _texture.Apply();
       return _texture;
-    }
-
-    void GeneratePixels(VecInt size, VecInt mid, GetColor getColor) {
-      Pos = mid;
-      Pixels = new Dictionary<VecInt, Pixel>();
-      Size = size;
-
-      VecInt startPos = new VecInt(mid.x - (size.x / 2), mid.y - (size.y / 2));
-
-      _texture = new Texture2D(Size.x, Size.y);
-      // this will generate transparent texture already.
-      // no need to iterate over at the bottom.
-      _colors = new Color32[Size.xy];
-
-      int i = 0;
-      // FIXME: this is terribly slow.
-      // need to find a better way to speed this up
-      for (int y = 0; y < size.y; ++y) {
-        for (int x = 0; x < size.x; ++x) {
-          VecInt pixelPos = new VecInt(startPos.x + x, startPos.y + y);
-          Pixels[pixelPos] = new Pixel(pixelPos, i);
-          ++i;
-        }
-      }
     }
   }
 
