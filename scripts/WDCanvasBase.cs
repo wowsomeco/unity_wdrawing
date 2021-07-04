@@ -8,31 +8,25 @@ namespace Wowsome.Drawing {
   public class WDCanvasBase : MonoBehaviour {
     public delegate Color32 GetColor();
 
-    Camera _camera;
-    RawImage _drawArea;
-    Texture2D _brush;
-    Texture2D _eraser;
-    Image _img;
-    RectTransform _rt;
-    Canvas _canvas;
-    PixelGrid _drawAreaPixels;
-    Color32[] _brushPixels;
-    Color32[] _eraserPixels;
-    bool _firstPaint = false;
-    bool _dragging = false;
-    Vector2 _lastDragPos = Vector2.zero;
-    float _drawLineThreshold = 8f;
-    float _renderThreshold = 4f;
-    Color32 _lastPaintColor;
-    bool _disabled = false;
+    public struct RenderCanvasEv {
+      public Color32 Color { get; private set; }
+      public Vector2 Pos { get; private set; }
+
+      public RenderCanvasEv(Color32 col, Vector2 pos) {
+        Color = col;
+        Pos = pos;
+      }
+    }
 
     public Image Img { get { return _img; } }
     public RectTransform Rt { get { return _rt; } }
     public RawImage DrawArea { get { return _drawArea; } }
     public GetColor GetPaintColor { get; set; }
     public Action OnStartPainting { get; set; }
-    public Action OnEndedPainting { get; set; }
+    public Action<Vector2> OnEndedPainting { get; set; }
     public Action<Vector2> OnPainting { get; set; }
+    public Action<RenderCanvasEv> OnRenderCanvas { get; set; }
+    public Action<bool> OnActive { get; set; }
 
     public bool Disabled {
       get { return _disabled; }
@@ -53,8 +47,28 @@ namespace Wowsome.Drawing {
         if (value) {
           _img.SetAlpha(0f);
         }
+
+        OnActive?.Invoke(value);
       }
     }
+
+    Camera _camera;
+    RawImage _drawArea;
+    Texture2D _brush;
+    Texture2D _eraser;
+    Image _img;
+    RectTransform _rt;
+    Canvas _canvas;
+    PixelGrid _drawAreaPixels;
+    Color32[] _brushPixels;
+    Color32[] _eraserPixels;
+    bool _firstPaint = false;
+    bool _dragging = false;
+    Vector2 _lastDragPos = Vector2.zero;
+    float _drawLineThreshold = 8f;
+    float _renderThreshold = 4f;
+    Color32 _lastPaintColor;
+    bool _disabled = false;
 
     public virtual void Reactivate() {
       _drawArea.enabled = true;
@@ -107,7 +121,8 @@ namespace Wowsome.Drawing {
         if (distance > _drawLineThreshold) {
           float t = 0f;
           while (t < 1f) {
-            t += 0.05f;
+            // TODO: make this configurable later
+            t += 0.2f;
             Vector2 p = Vector2.Lerp(pos, _lastDragPos, t);
             Paint(p);
           }
@@ -128,7 +143,9 @@ namespace Wowsome.Drawing {
         if (!_firstPaint) _firstPaint = true;
         // check if done
         bool isEraser = _lastPaintColor.IsTransparent();
-        // TODO: event rendering?
+        // broadcast render canvas ev
+        Vector2 localPos = screenPos.ScreenToLocalPos(_rt, _camera);
+        OnRenderCanvas?.Invoke(new RenderCanvasEv(_lastPaintColor, localPos));
       }
 
       return painted;
@@ -138,7 +155,7 @@ namespace Wowsome.Drawing {
       if (Disabled) return;
       _dragging = false;
       // broadcast ended swipe
-      OnEndedPainting?.Invoke();
+      OnEndedPainting?.Invoke(screenPos);
       // clean up on drag ends
       Resources.UnloadUnusedAssets();
     }
