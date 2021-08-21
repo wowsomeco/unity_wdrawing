@@ -69,6 +69,10 @@ namespace Wowsome.Drawing {
     float _renderThreshold = 4f;
     Color32 _lastPaintColor;
     bool _disabled = false;
+    /// <summary>
+    /// Indicates the distance between swiping distance
+    /// </summary>
+    float _distBetweenPoint;
 
     public virtual void Reactivate() {
       _drawArea.enabled = true;
@@ -117,12 +121,11 @@ namespace Wowsome.Drawing {
       if (distance < _renderThreshold) return false;
       // draw line logic here ... 
       if (_firstPaint && _dragging) {
-        // draw line if distance is too far between delta                              
+        // draw line if distance is too far between delta                                      
         if (distance > _drawLineThreshold) {
           float t = 0f;
           while (t < 1f) {
-            // TODO: make this configurable later
-            t += 0.2f;
+            t += _distBetweenPoint;
             Vector2 p = Vector2.Lerp(pos, _lastDragPos, t);
             Paint(p);
           }
@@ -160,8 +163,9 @@ namespace Wowsome.Drawing {
       Resources.UnloadUnusedAssets();
     }
 
-    public virtual void InitCanvas(Texture2D textureBrush, Texture2D eraser, Camera cam) {
+    public virtual void InitCanvas(Texture2D textureBrush, Texture2D eraser, Camera cam, float distBetweenPoint = .15f) {
       _camera = cam;
+      _distBetweenPoint = distBetweenPoint;
 
       _img = GetComponent<Image>();
       _rt = _img.rectTransform;

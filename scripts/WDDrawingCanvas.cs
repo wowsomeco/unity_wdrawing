@@ -26,8 +26,8 @@ namespace Wowsome.Drawing {
       _mask.enabled = true;
     }
 
-    public override void InitCanvas(Texture2D textureBrush, Texture2D eraser, Camera cam) {
-      base.InitCanvas(textureBrush, eraser, cam);
+    public override void InitCanvas(Texture2D textureBrush, Texture2D eraser, Camera cam, float distanceBetweenPoints = .15f) {
+      base.InitCanvas(textureBrush, eraser, cam, distanceBetweenPoints);
 
       _mask = GetComponent<Mask>();
       // init check points
